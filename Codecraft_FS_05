@@ -1,0 +1,166 @@
+/ Import necessary modules
+const express = require('express');
+const mongoose = require('mongoose');
+const multer = require('multer');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { Schema } = mongoose;
+
+// Initialize app
+const app = express();
+
+// Middleware
+app.use(bodyParser.json());
+app.use(express.static('uploads'));
+
+// Database connection
+mongoose.connect('mongodb://localhost:27017/social-media-app', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+// Schemas and Models
+const UserSchema = new Schema({
+  username: { type: String, unique: true },
+  email: { type: String, unique: true },
+  password: String,
+  profilePicture: String,
+  followers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  following: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+});
+
+const PostSchema = new Schema({
+  author: { type: Schema.Types.ObjectId, ref: 'User' },
+  content: String,
+  media: String,
+  tags: [String],
+  likes: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+  comments: [
+    {
+      user: { type: Schema.Types.ObjectId, ref: 'User' },
+      text: String,
+      timestamp: { type: Date, default: Date.now },
+    },
+  ],
+  timestamp: { type: Date, default: Date.now },
+});
+
+const User = mongoose.model('User', UserSchema);
+const Post = mongoose.model('Post', PostSchema);
+
+// JWT secret
+const JWT_SECRET = 'social_media_secret';
+
+// File upload configuration
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const upload = multer({ storage });
+
+// Routes
+// User registration
+app.post('/register', async (req, res) => {
+  const { username, email, password } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const user = new User({ username, email, password: hashedPassword });
+    await user.save();
+    res.status(201).send('User registered successfully');
+  } catch (err) {
+    res.status(400).send('Error registering user');
+  }
+});
+
+// User login
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).send('Invalid credentials');
+  }
+  const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
+  res.json({ token });
+});
+
+// Create a post
+app.post('/posts', upload.single('media'), async (req, res) => {
+  const { author, content, tags } = req.body;
+  const media = req.file ? `/uploads/${req.file.filename}` : null;
+  try {
+    const post = new Post({ author, content, media, tags });
+    await post.save();
+    res.status(201).json(post);
+  } catch (err) {
+    res.status(400).send('Error creating post');
+  }
+});
+
+// Like a post
+app.post('/posts/:id/like', async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post.likes.includes(userId)) {
+      post.likes.push(userId);
+      await post.save();
+    }
+    res.json(post);
+  } catch (err) {
+    res.status(400).send('Error liking post');
+  }
+});
+
+// Comment on a post
+app.post('/posts/:id/comment', async (req, res) => {
+  const { userId, text } = req.body;
+  try {
+    const post = await Post.findById(req.params.id);
+    post.comments.push({ user: userId, text });
+    await post.save();
+    res.json(post);
+  } catch (err) {
+    res.status(400).send('Error commenting on post');
+  }
+});
+
+// Get a user profile
+app.get('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).populate('followers following');
+    res.json(user);
+  } catch (err) {
+    res.status(400).send('Error fetching user profile');
+  }
+});
+
+// Follow a user
+app.post('/users/:id/follow', async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const userToFollow = await User.findById(req.params.id);
+    const currentUser = await User.findById(userId);
+
+    if (!currentUser.following.includes(userToFollow._id)) {
+      currentUser.following.push(userToFollow._id);
+      userToFollow.followers.push(currentUser._id);
+      await currentUser.save();
+      await userToFollow.save();
+    }
+    res.json(currentUser);
+  } catch (err) {
+    res.status(400).send('Error following user');
+  }
+});
+
+// Start server
+const PORT = 4000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
