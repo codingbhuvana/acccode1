@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Hello, World!</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+      <h1 class="title">Hello World! </h1>
+      <p id="currentTime"></p>
+      <script src="script.js"></script>
+  </body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #333;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .container {
+            padding: 2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th, td {
+            padding: 0.5rem;
+            text-align: left;
+        }
+
+        .form {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .form-group button {
+            padding: 0.5rem 1rem;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .form-group button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Employee Management System</h1>
+    </header>
+
+    <div class="container">
+        <h2>Employee Records</h2>
+        <table id="employeeTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Employee rows will be dynamically added here -->
+            </tbody>
+        </table>
+
+        <h2>Add / Update Employee</h2>
+        <form id="employeeForm" class="form">
+            <div class="form-group">
+                <label for="employeeId">ID</label>
+                <input type="text" id="employeeId" disabled>
+            </div>
+            <div class="form-group">
+                <label for="employeeName">Name</label>
+                <input type="text" id="employeeName" required>
+            </div>
+            <div class="form-group">
+                <label for="employeeEmail">Email</label>
+                <input type="email" id="employeeEmail" required>
+            </div>
+            <div class="form-group">
+                <button type="button" onclick="saveEmployee()">Save</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        let employees = [];
+
+        function refreshTable() {
+            const tableBody = document.querySelector("#employeeTable tbody");
+            tableBody.innerHTML = "";
+
+            employees.forEach((employee, index) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${employee.name}</td>
+                    <td>${employee.email}</td>
+                    <td>
+                        <button onclick="editEmployee(${index})">Edit</button>
+                        <button onclick="deleteEmployee(${index})">Delete</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function saveEmployee() {
+            const name = document.getElementById("employeeName").value;
+            const email = document.getElementById("employeeEmail").value;
+            const id = document.getElementById("employeeId").value;
+
+            if (!name || !email) {
+                alert("Please fill in all fields.");
+                return;
+            }
+
+            if (id) {
+                // Update existing employee
+                const index = parseInt(id) - 1;
+                employees[index] = { name, email };
+            } else {
+                // Add new employee
+                employees.push({ name, email });
+            }
+
+            document.getElementById("employeeForm").reset();
+            refreshTable();
+        }
+
+        function editEmployee(index) {
+            const employee = employees[index];
+            document.getElementById("employeeId").value = index + 1;
+            document.getElementById("employeeName").value = employee.name;
+            document.getElementById("employeeEmail").value = employee.email;
+        }
+
+        function deleteEmployee(index) {
+            if (confirm("Are you sure you want to delete this employee?")) {
+                employees.splice(index, 1);
+                refreshTable();
+            }
+        }
+
+        refreshTable();
+    </script>
+</body>
+</html>
