@@ -1,0 +1,100 @@
+// Import required modules
+const express = require('express');
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
+
+// Initialize app
+const app = express();
+app.use(bodyParser.json());
+app.use(cookieParser());
+
+// Database connection
+mongoose.connect('mongodb://localhost:27017/auth-system', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+// Schemas and Models
+const UserSchema = new mongoose.Schema({
+  username: { type: String, unique: true, required: true },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'user' },
+});
+
+const User = mongoose.model('User', UserSchema);
+
+// JWT secret
+const JWT_SECRET = 'your_secret_key';
+
+// Middleware to authenticate JWT and protect routes
+const authenticateJwt = (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).send('Access denied. Please log in.');
+  }
+  try {
+    const verified = jwt.verify(token, JWT_SECRET);
+    req.user = verified;
+    next();
+  } catch (err) {
+    res.status(403).send('Invalid token.');
+  }
+};
+
+// Role-based access control middleware
+const authorizeRole = (role) => (req, res, next) => {
+  if (req.user.role !== role) {
+    return res.status(403).send('Access denied.');
+  }
+  next();
+};
+
+// Routes
+// User registration
+app.post('/register', async (req, res) => {
+  const { username, email, password, role } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const user = new User({ username, email, password: hashedPassword, role });
+    await user.save();
+    res.status(201).send('User registered successfully.');
+  } catch (err) {
+    res.status(400).send('Error registering user.');
+  }
+});
+
+// User login
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).send('Invalid email or password.');
+  }
+  const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+  res.cookie('token', token, { httpOnly: true }).send('Logged in successfully.');
+});
+
+// User logout
+app.post('/logout', (req, res) => {
+  res.clearCookie('token').send('Logged out successfully.');
+});
+
+// Protected route
+app.get('/protected', authenticateJwt, (req, res) => {
+  res.send('This is a protected route accessible only to authenticated users.');
+});
+
+// Admin-only route
+app.get('/admin', authenticateJwt, authorizeRole('admin'), (req, res) => {
+  res.send('Welcome, admin. This route is restricted to admin users only.');
+});
+
+// Start server
+const PORT = 5000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}.`);
+});
